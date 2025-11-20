@@ -72,6 +72,7 @@ export default function ToiletMap() {
   const [newToiletTags, setNewToiletTags] = useState<string[]>([]);
   const [newToiletRating, setNewToiletRating] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [addToiletLocation, setAddToiletLocation] = useState<{ lat: number; lng: number } | null>(null); // Location for the toilet being added
   
   // Image Upload State
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -296,6 +297,13 @@ export default function ToiletMap() {
     }
   }, []);
 
+  // Auto-set addToiletLocation when switching to "add" tab and userLocation is available
+  useEffect(() => {
+    if (currentTab === "add" && userLocation && !addToiletLocation) {
+      setAddToiletLocation(userLocation);
+    }
+  }, [currentTab, userLocation, addToiletLocation]);
+
   const handleNavigate = () => {
     if (selectedToilet) {
       const url = `https://www.google.com/maps/dir/?api=1&destination=${selectedToilet.location.lat},${selectedToilet.location.lng}`;
@@ -492,8 +500,11 @@ export default function ToiletMap() {
   const handleAddSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       
-      if (!userLocation) {
-          alert("We need your location to add a toilet! Please allow GPS access.");
+      // Use addToiletLocation if set, otherwise fall back to userLocation
+      const locationToUse = addToiletLocation || userLocation;
+      
+      if (!locationToUse) {
+          alert("Please select a location on the map!");
           return;
       }
       
@@ -512,7 +523,7 @@ export default function ToiletMap() {
 
       const newToilet = await addToilet({
           name: newToiletName,
-          location: userLocation, // Use current GPS
+          location: locationToUse, // Use selected location (from map or GPS)
           address: "User Added Location", // Ideally reverse geocode this
           price: parseFloat(newToiletPrice) || 0,
           cleanlinessRating: newToiletRating,
@@ -530,6 +541,7 @@ export default function ToiletMap() {
           setNewToiletRating(0);
           setSelectedImage(null);
           setImagePreview(null);
+          setAddToiletLocation(null); // Reset location for next time
           
           // Refresh map and switch tab
           await loadToilets();
@@ -954,58 +966,57 @@ export default function ToiletMap() {
                 
                 {/* Map Preview for Manual Location Picking */}
                 <div className="relative h-[35%] w-full bg-gray-200 shrink-0">
-                    {!userLocation ? (
-                        <Map
-                            defaultCenter={MALAYSIA_CENTER}
-                            defaultZoom={15}
-                            className="h-full w-full"
-                            mapId="ADD_LOCATION_MAP"
-                            disableDefaultUI={true}
-                            mapTypeControl={false}
-                            fullscreenControl={false}
-                            zoomControl={false}
-                            streetViewControl={false}
-                            rotateControl={false}
-                            scaleControl={false}
-                            onCameraChanged={(ev) => {
-                                // Update location when map is dragged
-                                setUserLocation({
-                                    lat: ev.detail.center.lat,
-                                    lng: ev.detail.center.lng
-                                });
-                            }}
-                        >
-                            {/* Center Pin */}
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                                <div className="relative -mt-8">
-                                    <div className="h-8 w-8 rounded-full bg-red-500 border-4 border-white shadow-lg flex items-center justify-center">
-                                        <div className="h-2 w-2 bg-white rounded-full" />
-                                    </div>
-                                    <div className="absolute left-1/2 top-full h-4 w-0.5 -translate-x-1/2 bg-red-500" />
+                    <Map
+                        defaultCenter={addToiletLocation || userLocation || MALAYSIA_CENTER}
+                        defaultZoom={15}
+                        className="h-full w-full hide-map-controls"
+                        mapId="ADD_LOCATION_MAP"
+                        disableDefaultUI={true}
+                        mapTypeControl={false}
+                        fullscreenControl={false}
+                        zoomControl={false}
+                        streetViewControl={false}
+                        rotateControl={false}
+                        scaleControl={false}
+                        onCameraChanged={(ev) => {
+                            // Update location when map is dragged
+                            setAddToiletLocation({
+                                lat: ev.detail.center.lat,
+                                lng: ev.detail.center.lng
+                            });
+                        }}
+                    >
+                        {/* Auto-pan to GPS location when first detected (only if addToiletLocation is not set) */}
+                        {!addToiletLocation && userLocation && (
+                            <PanToLocation location={userLocation} />
+                        )}
+                        
+                        {/* Center Pin */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                            <div className="relative -mt-8">
+                                <div className="h-8 w-8 rounded-full bg-red-500 border-4 border-white shadow-lg flex items-center justify-center">
+                                    <div className="h-2 w-2 bg-white rounded-full" />
                                 </div>
+                                <div className="absolute left-1/2 top-full h-4 w-0.5 -translate-x-1/2 bg-red-500" />
                             </div>
-                        </Map>
-                    ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-blue-50">
-                            <div className="flex flex-col items-center text-blue-600">
-                                <Check className="h-10 w-10" />
-                                <span className="mt-2 text-sm font-bold">GPS Location Locked</span>
-                                <button 
-                                    onClick={() => setUserLocation(null)}
-                                    className="mt-2 text-xs underline"
-                                >
-                                    Adjust Manually
-                                </button>
+                        </div>
+                    </Map>
+                    
+                    {/* Overlay Text */}
+                    <div className="absolute top-4 left-0 right-0 text-center pointer-events-none z-20">
+                        <span className="bg-black/60 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm font-medium">
+                            {addToiletLocation || userLocation ? "Drag map to adjust location" : "Drag map to pin location"}
+                        </span>
+                    </div>
+                    
+                    {/* GPS Status Indicator */}
+                    {userLocation && (
+                        <div className="absolute bottom-4 left-4 right-4 pointer-events-none z-20">
+                            <div className="bg-green-500/90 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm font-medium text-center">
+                                ✓ GPS Location Detected
                             </div>
                         </div>
                     )}
-                    
-                    {/* Overlay Text */}
-                    <div className="absolute top-4 left-0 right-0 text-center pointer-events-none">
-                        <span className="bg-black/60 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm font-medium">
-                            {!userLocation ? "Drag map to pin location" : "Location detected"}
-                        </span>
-                    </div>
                 </div>
 
                 <div className="flex-1 w-full overflow-y-auto bg-white rounded-t-3xl -mt-4 z-10 shadow-lg">
