@@ -24,3 +24,54 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Hide Google Maps default controls */
+.gm-style-mtc,
+.gmnoprint,
+.gm-bundled-control,
+.gm-fullscreen-control,
+.gm-style-cc,
+.gm-style .gm-style-mtc,
+.gm-style .gm-style-cc,
+.gm-style .gmnoprint,
+button[title*="Map"],
+button[title*="Satellite"],
+button[aria-label*="Map"],
+button[aria-label*="Satellite"],
+div[role="button"][title*="Map"],
+div[role="button"][title*="Satellite"],
+.gm-control-active,
+.gm-style-iw,
+.gm-style-iw-t {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+/* Hide map type selector buttons */
+.gm-style-mtc button,
+.gm-style-mtc div[role="button"] {
+  display: none !important;
+}
+
+/* Hide compass control */
+.gm-compass,
+.gm-style-cc {
+  display: none !important;
+}
+
+/* Hide all controls within map container */
+.hide-map-controls .gm-style-mtc,
+.hide-map-controls .gmnoprint,
+.hide-map-controls .gm-bundled-control,
+.hide-map-controls .gm-fullscreen-control,
+.hide-map-controls .gm-style-cc,
+.hide-map-controls button[title*="Map"],
+.hide-map-controls button[title*="Satellite"],
+.hide-map-controls div[role="button"][title*="Map"],
+.hide-map-controls div[role="button"][title*="Satellite"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

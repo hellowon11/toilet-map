@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MY Toilet Map",
+  title: "Toilet Finder 🚽",
   description: "Find clean toilets in Malaysia",
 };
 

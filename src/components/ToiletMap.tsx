@@ -3,8 +3,8 @@
 import { APIProvider, Map, AdvancedMarker, useMap } from "@vis.gl/react-google-maps";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Toilet } from "@/lib/types";
-import { fetchToilets, addToilet, fetchReviews, addReview, uploadToiletImage, toggleFavorite, getFavorites, addToHistory, getHistory, clearHistory } from "@/lib/data";
-import { Navigation, Star, X, Loader2, Crosshair, Check, Send, Camera, Upload, MapPin, ChevronLeft, ChevronRight, Heart, Filter, Share2 } from "lucide-react";
+import { fetchToilets, addToilet, fetchReviews, addReview, deleteReview, uploadToiletImage, toggleFavorite, getFavorites, addToHistory, getHistory, clearHistory } from "@/lib/data";
+import { Navigation, Star, X, Loader2, Crosshair, Check, Send, Camera, Upload, MapPin, ChevronLeft, ChevronRight, Heart, Filter, Share2, Trash2 } from "lucide-react";
 import BottomNav from "./BottomNav";
 import ToiletList from "./ToiletList";
 import TopBar from "./TopBar";
@@ -307,7 +307,7 @@ export default function ToiletMap() {
       if (!selectedToilet) return;
       
       const shareUrl = `${window.location.origin}${window.location.pathname}?toilet=${selectedToilet.id}`;
-      const shareText = `Check out ${selectedToilet.name} on KL Toilet Finder! Rating: ${selectedToilet.cleanlinessRating}⭐`;
+      const shareText = `Check out ${selectedToilet.name} on Toilet Finder 🚽! Rating: ${selectedToilet.cleanlinessRating}⭐`;
 
       // Try Web Share API first (mobile - shows native share menu)
       if (navigator.share) {
@@ -336,7 +336,7 @@ export default function ToiletMap() {
       if (!selectedToilet) return;
       
       const shareUrl = `${window.location.origin}${window.location.pathname}?toilet=${selectedToilet.id}`;
-      const shareText = `Check out ${selectedToilet.name} on KL Toilet Finder! Rating: ${selectedToilet.cleanlinessRating}⭐`;
+      const shareText = `Check out ${selectedToilet.name} on Toilet Finder 🚽! Rating: ${selectedToilet.cleanlinessRating}⭐`;
       const encodedText = encodeURIComponent(shareText);
       const encodedUrl = encodeURIComponent(shareUrl);
 
@@ -705,10 +705,16 @@ export default function ToiletMap() {
               defaultCenter={MALAYSIA_CENTER}
               defaultZoom={14}
               mapId="DEMO_MAP_ID"
-              className="h-full w-full outline-none"
+              className="h-full w-full outline-none hide-map-controls"
               disableDefaultUI={true}
               clickableIcons={false}
               gestureHandling="greedy"
+              mapTypeControl={false}
+              fullscreenControl={false}
+              zoomControl={false}
+              streetViewControl={false}
+              rotateControl={false}
+              scaleControl={false}
             >
               {/* Auto-pan to selected toilet or search result */}
               {(selectedToilet || panToLocation) && (
@@ -955,6 +961,12 @@ export default function ToiletMap() {
                             className="h-full w-full"
                             mapId="ADD_LOCATION_MAP"
                             disableDefaultUI={true}
+                            mapTypeControl={false}
+                            fullscreenControl={false}
+                            zoomControl={false}
+                            streetViewControl={false}
+                            rotateControl={false}
+                            scaleControl={false}
                             onCameraChanged={(ev) => {
                                 // Update location when map is dragged
                                 setUserLocation({
@@ -1334,15 +1346,48 @@ export default function ToiletMap() {
                             {reviews.map((review) => (
                                 <div key={review.id} className="rounded-2xl bg-white p-4 shadow-sm">
                                     <div className="flex justify-between items-start mb-2">
-                                        <div>
-                                            <h4 className="font-bold text-sm text-gray-900">{review.userName}</h4>
+                                        <div className="flex-1">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="font-bold text-sm text-gray-900">{review.userName}</h4>
+                                                {review.isOwnReview && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            if (!selectedToilet) return;
+                                                            if (confirm("Are you sure you want to delete this review?")) {
+                                                                const success = await deleteReview(review.id, selectedToilet.id);
+                                                                if (success) {
+                                                                    // Refresh reviews
+                                                                    const updatedReviews = await fetchReviews(selectedToilet.id);
+                                                                    setReviews(updatedReviews);
+                                                                    
+                                                                    // Refresh toilets list to update rating
+                                                                    await loadToilets();
+                                                                    
+                                                                    // Update selected toilet with new rating
+                                                                    const updatedToilets = await fetchToilets();
+                                                                    const updatedToilet = updatedToilets.find(t => t.id === selectedToilet.id);
+                                                                    if (updatedToilet) {
+                                                                        setSelectedToilet(updatedToilet);
+                                                                    }
+                                                                } else {
+                                                                    alert("Failed to delete review. Please try again.");
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="ml-2 p-1.5 rounded-lg text-red-500 hover:bg-red-50 active:scale-95 transition-all"
+                                                        title="Delete review"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
+                                                )}
+                                            </div>
                                             <div className="flex gap-0.5 text-yellow-400 mt-0.5">
                                                 {[1,2,3,4,5].map(i => (
                                                     <Star key={i} className={`h-3 w-3 ${i <= review.rating ? "fill-current" : "text-gray-200"}`} />
                                                 ))}
                                             </div>
                                         </div>
-                                        <span className="text-xs text-gray-400">{review.timeAgo}</span>
+                                        <span className="text-xs text-gray-400 ml-2">{review.timeAgo}</span>
                                     </div>
                                     {review.comment && <p className="text-sm text-gray-600 mb-2">{review.comment}</p>}
                                     {review.images && review.images.length > 0 && (

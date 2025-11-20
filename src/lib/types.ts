@@ -24,5 +24,7 @@ export interface Review {
   date: string;
   images?: string[];
   timeAgo?: string;
+  profileId?: string;
+  isOwnReview?: boolean;
 }
 

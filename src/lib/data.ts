@@ -179,6 +179,7 @@ export async function addReview(review: { toiletId: string; rating: number; comm
 }
 
 export async function fetchReviews(toiletId: string) {
+    const profileId = getUserId();
     const { data, error } = await supabase
         .from('reviews')
         .select(`
@@ -187,6 +188,7 @@ export async function fetchReviews(toiletId: string) {
             comment,
             images,
             created_at,
+            profile_id,
             profiles ( display_name )
         `)
         .eq('toilet_id', toiletId)
@@ -204,8 +206,93 @@ export async function fetchReviews(toiletId: string) {
         comment: r.comment,
         images: Array.isArray(r.images) ? r.images : (r.images ? [r.images] : []),
         date: new Date(r.created_at).toLocaleDateString(),
-        timeAgo: getTimeAgo(new Date(r.created_at))
+        timeAgo: getTimeAgo(new Date(r.created_at)),
+        profileId: r.profile_id, // Include profile_id to check if it's user's own review
+        isOwnReview: profileId ? r.profile_id === profileId : false
     }));
+}
+
+export async function deleteReview(reviewId: string, toiletId: string): Promise<boolean> {
+    const profileId = getUserId();
+    if (!profileId) {
+        console.error('No user ID found');
+        return false;
+    }
+
+    // First, verify that this review belongs to the current user
+    const { data: review, error: fetchError } = await supabase
+        .from('reviews')
+        .select('profile_id')
+        .eq('id', reviewId)
+        .single();
+
+    if (fetchError || !review) {
+        console.error('Error fetching review:', fetchError);
+        return false;
+    }
+
+    if (review.profile_id !== profileId) {
+        console.error('User is not authorized to delete this review');
+        return false;
+    }
+
+    // Delete the review
+    const { error: deleteError } = await supabase
+        .from('reviews')
+        .delete()
+        .eq('id', reviewId)
+        .eq('profile_id', profileId); // Double check with profile_id
+
+    if (deleteError) {
+        console.error('Error deleting review:', deleteError);
+        return false;
+    }
+
+    // Recalculate average rating and update toilet
+    const { data: allReviews, error: fetchAllError } = await supabase
+        .from('reviews')
+        .select('rating')
+        .eq('toilet_id', toiletId);
+
+    if (fetchAllError) {
+        console.error('Error fetching reviews for calculation:', fetchAllError);
+        return true; // Review was deleted, but couldn't update rating
+    }
+
+    // Calculate average rating
+    if (allReviews.length === 0) {
+        // No reviews left, set to 0
+        const { error: updateError } = await supabase
+            .from('toilets')
+            .update({
+                cleanliness_rating: 0,
+                review_count: 0
+            })
+            .eq('id', toiletId);
+
+        if (updateError) {
+            console.error('Error updating toilet rating:', updateError);
+        }
+    } else {
+        const totalRating = allReviews.reduce((sum, r) => sum + r.rating, 0);
+        const averageRating = totalRating / allReviews.length;
+        const reviewCount = allReviews.length;
+
+        // Update toilet with new average rating and count
+        const { error: updateError } = await supabase
+            .from('toilets')
+            .update({
+                cleanliness_rating: Math.round(averageRating * 10) / 10,
+                review_count: reviewCount
+            })
+            .eq('id', toiletId);
+
+        if (updateError) {
+            console.error('Error updating toilet rating:', updateError);
+        }
+    }
+
+    return true;
 }
 
 function getTimeAgo(date: Date) {

@@ -72,7 +72,7 @@ export default function TopBar({ onSearch, searchValue, onSearchChange }: TopBar
         {/* Header Row */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-extrabold text-gray-900 tracking-tight">KL Toilet Finder</h1>
+            <h1 className="text-xl font-extrabold text-gray-900 tracking-tight">Toilet Finder 🚽</h1>
           </div>
           <button 
             onClick={() => setIsAuthOpen(true)}

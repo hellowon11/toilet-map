@@ -65,8 +65,145 @@ export default function AiGenie({ toilets = [], userLocation, onSearch, onFilter
       }));
     }
 
-    // Cleanest / Best rating
-    if (lowerQuery.includes("cleanest") || lowerQuery.includes("best") || lowerQuery.includes("highest rating")) {
+    // Parse multiple conditions
+    const conditions = {
+      rating: null as number | null,
+      minRating: null as number | null,
+      price: null as "free" | "paid" | null,
+      tags: [] as string[],
+      maxDistance: null as number | null,
+      limit: null as number | null,
+      sortBy: "rating" as "rating" | "distance" | "name"
+    };
+
+    // Extract rating requirements
+    if (lowerQuery.match(/\b(5|five|five star)\b/)) conditions.minRating = 5;
+    else if (lowerQuery.match(/\b(4|four|four star)\b/)) conditions.minRating = 4;
+    else if (lowerQuery.match(/\b(3|three|three star)\b/)) conditions.minRating = 3;
+    else if (lowerQuery.match(/\b(2|two|two star)\b/)) conditions.minRating = 2;
+    else if (lowerQuery.match(/\b(1|one|one star)\b/)) conditions.minRating = 1;
+
+    // Extract distance requirements
+    const distanceMatch = lowerQuery.match(/(\d+(?:\.\d+)?)\s*(km|m|meter|meters|kilometer|kilometers)/);
+    if (distanceMatch) {
+      const value = parseFloat(distanceMatch[1]);
+      const unit = distanceMatch[2].toLowerCase();
+      conditions.maxDistance = unit.startsWith('k') ? value : value / 1000;
+    } else if (lowerQuery.match(/\b(within|less than|under|below)\s+(\d+)\s*(km|m|meter|meters|kilometer|kilometers)?/)) {
+      const match = lowerQuery.match(/\b(within|less than|under|below)\s+(\d+)/);
+      if (match) {
+        const value = parseFloat(match[2]);
+        conditions.maxDistance = value < 10 ? value / 1000 : value; // Assume km if > 10, m if < 10
+      }
+    }
+
+    // Extract limit (top N, first N, show N)
+    const limitMatch = lowerQuery.match(/\b(top|first|show|list)\s+(\d+)/);
+    if (limitMatch) {
+      conditions.limit = parseInt(limitMatch[2]);
+    }
+
+    // Extract price conditions
+    if (lowerQuery.match(/\b(free|no cost|no charge|gratis)\b/)) conditions.price = "free";
+    else if (lowerQuery.match(/\b(paid|cost money|not free)\b/)) conditions.price = "paid";
+
+    // Extract facility tags
+    if (lowerQuery.match(/\b(bidet|washlet)\b/)) conditions.tags.push("Bidet");
+    if (lowerQuery.match(/\b(accessible|wheelchair|disabled|handicap)\b/)) conditions.tags.push("Accessible");
+    if (lowerQuery.match(/\b(baby|changing|diaper|infant)\b/)) conditions.tags.push("Baby Changing");
+    if (lowerQuery.match(/\b(premium|luxury|fancy|high end)\b/)) conditions.tags.push("Premium");
+    if (lowerQuery.match(/\b(prayer|wudu|ablution)\b/)) conditions.tags.push("Prayer Room");
+    if (lowerQuery.match(/\b(cultural|heritage)\b/)) conditions.tags.push("Cultural");
+
+    // Extract sort preference
+    if (lowerQuery.match(/\b(nearest|closest|nearby|distance)\b/)) conditions.sortBy = "distance";
+    else if (lowerQuery.match(/\b(cleanest|best|highest|top rated)\b/)) conditions.sortBy = "rating";
+    else if (lowerQuery.match(/\b(name|alphabetical)\b/)) conditions.sortBy = "name";
+
+    // Apply filters
+    filteredToilets = filteredToilets.filter(t => {
+      if (conditions.minRating && t.cleanlinessRating < conditions.minRating) return false;
+      if (conditions.price === "free" && t.price > 0) return false;
+      if (conditions.price === "paid" && t.price === 0) return false;
+      if (conditions.tags.length > 0 && !conditions.tags.every(tag => t.tags.includes(tag))) return false;
+      if (conditions.maxDistance && userLocation) {
+        const dist = (t as any).distance || calculateDistance(userLocation.lat, userLocation.lng, t.location.lat, t.location.lng);
+        if (dist > conditions.maxDistance) return false;
+      }
+      return true;
+    });
+
+    // Sort results
+    filteredToilets.sort((a, b) => {
+      if (conditions.sortBy === "distance" && userLocation) {
+        const aDist = (a as any).distance || Infinity;
+        const bDist = (b as any).distance || Infinity;
+        return aDist - bDist;
+      } else if (conditions.sortBy === "rating") {
+        const aDist = (a as any).distance || Infinity;
+        const bDist = (b as any).distance || Infinity;
+        if (a.cleanlinessRating === b.cleanlinessRating && aDist < Infinity && bDist < Infinity) {
+          return aDist - bDist;
+        }
+        return b.cleanlinessRating - a.cleanlinessRating;
+      } else if (conditions.sortBy === "name") {
+        return a.name.localeCompare(b.name);
+      }
+      return 0;
+    });
+
+    // Apply limit
+    if (conditions.limit) {
+      filteredToilets = filteredToilets.slice(0, conditions.limit);
+    }
+
+    // Handle complex queries with multiple conditions
+    if (conditions.minRating || conditions.price || conditions.tags.length > 0 || conditions.maxDistance || conditions.limit) {
+      if (filteredToilets.length === 0) {
+        let reason = "I couldn't find any toilets";
+        if (conditions.minRating) reason += ` with ${conditions.minRating}+ star rating`;
+        if (conditions.price) reason += ` that are ${conditions.price}`;
+        if (conditions.tags.length > 0) reason += ` with ${conditions.tags.join(" and ")}`;
+        if (conditions.maxDistance) reason += ` within ${conditions.maxDistance < 1 ? Math.round(conditions.maxDistance * 1000) + 'm' : conditions.maxDistance.toFixed(1) + 'km'}`;
+        return { text: `${reason}. Try adjusting your search! 🔍` };
+      }
+
+      // Apply filters and show results
+      const filters: any = {};
+      if (conditions.minRating) filters.rating = conditions.minRating;
+      if (conditions.price) filters.price = conditions.price;
+      if (conditions.tags.length > 0) filters.tags = conditions.tags;
+      onFilter?.(filters);
+
+      if (filteredToilets.length === 1) {
+        const toilet = filteredToilets[0];
+        const dist = (toilet as any).distance;
+        const distText = dist < Infinity ? (dist < 1 ? `${Math.round(dist * 1000)}m away` : `${dist.toFixed(1)}km away`) : "";
+        onSelectToilet?.(toilet);
+        return {
+          text: `Perfect match! **${toilet.name}** (${toilet.cleanlinessRating}⭐${toilet.price === 0 ? ', Free' : `, RM${toilet.price}`})${distText ? `, ${distText}` : ""} ✨`,
+          action: "select"
+        };
+      }
+
+      const top3 = filteredToilets.slice(0, 3);
+      let response = `I found ${filteredToilets.length} toilet${filteredToilets.length > 1 ? 's' : ''} matching your criteria:\n\n`;
+      top3.forEach((t, idx) => {
+        const dist = (t as any).distance;
+        const distText = dist < Infinity ? (dist < 1 ? `${Math.round(dist * 1000)}m` : `${dist.toFixed(1)}km`) : "?";
+        response += `${idx + 1}. **${t.name}** - ${t.cleanlinessRating}⭐${t.price === 0 ? ', Free' : `, RM${t.price}`}${distText !== "?" ? `, ${distText} away` : ""}\n`;
+      });
+      if (filteredToilets.length > 3) {
+        response += `\n...and ${filteredToilets.length - 3} more! Check the list for details.`;
+      }
+      if (top3.length > 0) {
+        onSelectToilet?.(top3[0]);
+      }
+      return { text: response, action: "filter" };
+    }
+
+    // Cleanest / Best rating (simple query)
+    if (lowerQuery.includes("cleanest") || lowerQuery.includes("best") || lowerQuery.includes("highest rating") || lowerQuery.includes("top rated")) {
       const sorted = filteredToilets.sort((a, b) => {
         const aDist = (a as any).distance || Infinity;
         const bDist = (b as any).distance || Infinity;
@@ -227,9 +364,90 @@ export default function AiGenie({ toilets = [], userLocation, onSearch, onFilter
       }
     }
 
-    // Default helpful response
+    // Greeting and help queries
+    if (lowerQuery.match(/\b(hi|hello|hey|help|what can you do|how|what)\b/)) {
+      return {
+        text: "Hi! I'm your Toilet Genie 🚽✨. I can help you find toilets with:\n\n" +
+              "**Simple queries:**\n" +
+              "• 'Find the cleanest toilet'\n" +
+              "• 'Show me free toilets'\n" +
+              "• 'Nearest accessible toilet'\n\n" +
+              "**Combined queries:**\n" +
+              "• 'Free toilets with bidet within 1km'\n" +
+              "• 'Top 3 cleanest premium toilets'\n" +
+              "• '4 star toilets with baby changing'\n\n" +
+              "**Search by name:**\n" +
+              "• 'KLCC' or 'Pavilion'\n\n" +
+              "Just ask naturally and I'll help! 😊"
+      };
+    }
+
+    // Comparison queries
+    if (lowerQuery.match(/\b(compare|difference|which is better|vs|versus)\b/)) {
+      if (filteredToilets.length >= 2) {
+        const top2 = filteredToilets.slice(0, 2);
+        let comparison = "**Comparison:**\n\n";
+        top2.forEach((t, idx) => {
+          const dist = (t as any).distance;
+          const distText = dist < Infinity ? (dist < 1 ? `${Math.round(dist * 1000)}m` : `${dist.toFixed(1)}km`) : "?";
+          comparison += `${idx + 1}. **${t.name}**\n`;
+          comparison += `   Rating: ${t.cleanlinessRating}⭐ | Price: ${t.price === 0 ? 'Free' : `RM${t.price}`} | Distance: ${distText}\n`;
+          comparison += `   Facilities: ${t.tags.join(", ") || "Basic"}\n\n`;
+        });
+        return { text: comparison };
+      }
+    }
+
+    // Statistics queries
+    if (lowerQuery.match(/\b(how many|count|statistics|stats|total)\b/)) {
+      const stats = {
+        total: toilets.length,
+        free: toilets.filter(t => t.price === 0).length,
+        paid: toilets.filter(t => t.price > 0).length,
+        highRated: toilets.filter(t => t.cleanlinessRating >= 4).length,
+        withBidet: toilets.filter(t => t.tags.includes("Bidet")).length,
+        accessible: toilets.filter(t => t.tags.includes("Accessible")).length
+      };
+      return {
+        text: `**Toilet Statistics:**\n\n` +
+              `📊 Total: ${stats.total} toilets\n` +
+              `💰 Free: ${stats.free} | Paid: ${stats.paid}\n` +
+              `⭐ High rated (4+): ${stats.highRated}\n` +
+              `💦 With bidet: ${stats.withBidet}\n` +
+              `♿ Accessible: ${stats.accessible}`
+      };
+    }
+
+    // Recommendation queries
+    if (lowerQuery.match(/\b(recommend|suggest|what do you suggest|advice)\b/)) {
+      if (filteredToilets.length > 0) {
+        const recommended = filteredToilets[0];
+        const dist = (recommended as any).distance;
+        const distText = dist < Infinity ? (dist < 1 ? `${Math.round(dist * 1000)}m away` : `${dist.toFixed(1)}km away`) : "";
+        onSelectToilet?.(recommended);
+        return {
+          text: `I recommend **${recommended.name}**! 🎯\n\n` +
+                `⭐ Rating: ${recommended.cleanlinessRating}/5\n` +
+                `💰 Price: ${recommended.price === 0 ? 'Free' : `RM${recommended.price}`}\n` +
+                `${distText ? `📍 Distance: ${distText}\n` : ''}` +
+                `🏷️ Features: ${recommended.tags.join(", ") || "Basic"}\n\n` +
+                `This is the best match based on your preferences!`,
+          action: "select"
+        };
+      }
+    }
+
+    // Default helpful response with examples
     return { 
-      text: "I can help you find toilets by:\n• **Rating**: 'cleanest', '4 star', 'best'\n• **Price**: 'free', 'paid'\n• **Facilities**: 'bidet', 'accessible', 'baby changing', 'premium'\n• **Distance**: 'nearest', 'closest'\n• **Search**: Just type a name or location!\n\nTry asking: 'Find free toilets with bidet' or 'Show me the nearest premium toilet' ✨"
+      text: "I can help you find toilets! Try asking:\n\n" +
+            "**Examples:**\n" +
+            "• 'Find free toilets with bidet within 500m'\n" +
+            "• 'Show me the top 3 cleanest toilets'\n" +
+            "• '4 star accessible toilets near me'\n" +
+            "• 'Compare the nearest premium toilets'\n" +
+            "• 'How many free toilets are there?'\n" +
+            "• 'Recommend a toilet for me'\n\n" +
+            "Or just search by name like 'KLCC' or 'Pavilion'! 🔍✨"
     };
   };
 
