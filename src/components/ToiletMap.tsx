@@ -47,11 +47,11 @@ function MapControls({ userLocation }: { userLocation: { lat: number; lng: numbe
             {/* Return to Current Location Button - Bottom right, above AI assistant */}
             <button
                 onClick={handleRecenter}
-                className="fixed bottom-36 right-4 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg ring-1 ring-black/5 hover:bg-blue-700 active:scale-95 transition-transform touch-manipulation"
+                className="fixed bottom-36 right-4 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg ring-1 ring-black/5 hover:bg-blue-700 active:scale-95 transition-transform touch-manipulation"
                 aria-label="Return to my location"
                 title={userLocation ? "Return to my location" : "Get my location"}
             >
-                <Crosshair className="h-5 w-5" />
+                <Crosshair className="h-6 w-6" />
             </button>
         </>
     );
