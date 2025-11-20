@@ -60,8 +60,8 @@ function MapControls({ userLocation }: { userLocation: { lat: number; lng: numbe
 
     return (
         <>
-            {/* Zoom Controls - Bottom right, stacked vertically */}
-            <div className="fixed bottom-44 right-4 z-20 flex flex-col gap-2">
+            {/* Zoom Controls - Bottom left, stacked vertically */}
+            <div className="fixed bottom-20 left-4 z-20 flex flex-col gap-2">
                 <button
                     onClick={handleZoomIn}
                     className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-gray-700 shadow-lg ring-1 ring-black/5 hover:bg-gray-50 active:scale-95 transition-transform touch-manipulation"
@@ -78,10 +78,10 @@ function MapControls({ userLocation }: { userLocation: { lat: number; lng: numbe
                 </button>
             </div>
 
-            {/* Return to Current Location Button - Bottom right, above zoom controls */}
+            {/* Return to Current Location Button - Bottom left, above zoom controls */}
             <button
                 onClick={handleRecenter}
-                className="fixed bottom-[13.5rem] right-4 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg ring-1 ring-black/5 hover:bg-gray-50 active:scale-95 transition-transform touch-manipulation"
+                className="fixed bottom-36 left-4 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg ring-1 ring-black/5 hover:bg-blue-700 active:scale-95 transition-transform touch-manipulation"
                 aria-label="Return to my location"
                 title={userLocation ? "Return to my location" : "Get my location"}
             >
