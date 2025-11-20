@@ -12,7 +12,7 @@ import AiGenie from "./AiGenie";
 
 const MALAYSIA_CENTER = { lat: 3.140853, lng: 101.693207 }; // Kuala Lumpur
 
-// Internal component to access map instance
+// Internal component to access map instance with zoom and location controls
 function MapControls({ userLocation }: { userLocation: { lat: number; lng: number } | null }) {
     const map = useMap();
 
@@ -20,23 +20,74 @@ function MapControls({ userLocation }: { userLocation: { lat: number; lng: numbe
         if (map && userLocation) {
             map.panTo(userLocation);
             map.setZoom(16);
+        } else if (map && navigator.geolocation) {
+           // Try to get current location
+           navigator.geolocation.getCurrentPosition(
+               (pos) => {
+                   const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                   map.panTo(newPos);
+                   map.setZoom(16);
+               },
+               (error) => {
+                   console.error("Error getting location:", error);
+                   // Fallback to KL center
+                   map.panTo(MALAYSIA_CENTER);
+                   map.setZoom(14);
+               }
+           );
         } else if (map) {
-           // If no user location, just reset to KL Center or try getting location again
-           navigator.geolocation.getCurrentPosition((pos) => {
-               const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-               map.panTo(newPos);
-               map.setZoom(16);
-           });
+            // Fallback to KL center
+            map.panTo(MALAYSIA_CENTER);
+            map.setZoom(14);
         }
     }, [map, userLocation]);
 
+    const handleZoomIn = useCallback(() => {
+        if (map) {
+            const currentZoom = map.getZoom() || 14;
+            const newZoom = Math.min(currentZoom + 1, 20);
+            map.setZoom(newZoom);
+        }
+    }, [map]);
+
+    const handleZoomOut = useCallback(() => {
+        if (map) {
+            const currentZoom = map.getZoom() || 14;
+            const newZoom = Math.max(currentZoom - 1, 3);
+            map.setZoom(newZoom);
+        }
+    }, [map]);
+
     return (
-        <button
-            onClick={handleRecenter}
-            className="fixed bottom-44 right-4 z-20 flex h-12 w-12 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg ring-1 ring-black/5 hover:bg-gray-50 active:scale-95 transition-transform"
-        >
-            <Crosshair className="h-6 w-6" />
-        </button>
+        <>
+            {/* Zoom Controls - Bottom right, stacked vertically */}
+            <div className="fixed bottom-44 right-4 z-20 flex flex-col gap-2">
+                <button
+                    onClick={handleZoomIn}
+                    className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-gray-700 shadow-lg ring-1 ring-black/5 hover:bg-gray-50 active:scale-95 transition-transform touch-manipulation"
+                    aria-label="Zoom in"
+                >
+                    <span className="text-xl font-bold leading-none">+</span>
+                </button>
+                <button
+                    onClick={handleZoomOut}
+                    className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-gray-700 shadow-lg ring-1 ring-black/5 hover:bg-gray-50 active:scale-95 transition-transform touch-manipulation"
+                    aria-label="Zoom out"
+                >
+                    <span className="text-xl font-bold leading-none">−</span>
+                </button>
+            </div>
+
+            {/* Return to Current Location Button - Bottom right, above zoom controls */}
+            <button
+                onClick={handleRecenter}
+                className="fixed bottom-[13.5rem] right-4 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg ring-1 ring-black/5 hover:bg-gray-50 active:scale-95 transition-transform touch-manipulation"
+                aria-label="Return to my location"
+                title={userLocation ? "Return to my location" : "Get my location"}
+            >
+                <Crosshair className="h-5 w-5" />
+            </button>
+        </>
     );
 }
 
@@ -52,6 +103,85 @@ function PanToLocation({ location }: { location: { lat: number; lng: number } | 
     }, [map, location]);
 
     return null;
+}
+
+// Internal component for Add tab map controls (zoom and location)
+function AddMapControls({ 
+    userLocation, 
+    onUseCurrentLocation 
+}: { 
+    userLocation: { lat: number; lng: number } | null;
+    onUseCurrentLocation: () => void;
+}) {
+    const map = useMap();
+
+    const handleZoomIn = useCallback(() => {
+        if (map) {
+            const currentZoom = map.getZoom() || 15;
+            const newZoom = Math.min(currentZoom + 1, 20);
+            map.setZoom(newZoom);
+        }
+    }, [map]);
+
+    const handleZoomOut = useCallback(() => {
+        if (map) {
+            const currentZoom = map.getZoom() || 15;
+            const newZoom = Math.max(currentZoom - 1, 3);
+            map.setZoom(newZoom);
+        }
+    }, [map]);
+
+    const handleUseCurrentLocation = useCallback(() => {
+        if (map && userLocation) {
+            map.panTo(userLocation);
+            map.setZoom(16);
+            onUseCurrentLocation();
+        } else if (map && navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    map.panTo(newPos);
+                    map.setZoom(16);
+                    onUseCurrentLocation();
+                },
+                (error) => {
+                    console.error("Error getting location:", error);
+                }
+            );
+        }
+    }, [map, userLocation, onUseCurrentLocation]);
+
+    return (
+        <>
+            {/* Zoom Controls - Bottom right, stacked vertically */}
+            <div className="absolute bottom-4 right-4 z-30 flex flex-col gap-2">
+                <button
+                    onClick={handleZoomIn}
+                    className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-gray-700 shadow-lg ring-1 ring-black/5 hover:bg-gray-50 active:scale-95 transition-transform touch-manipulation"
+                    aria-label="Zoom in"
+                >
+                    <span className="text-xl font-bold leading-none">+</span>
+                </button>
+                <button
+                    onClick={handleZoomOut}
+                    className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-gray-700 shadow-lg ring-1 ring-black/5 hover:bg-gray-50 active:scale-95 transition-transform touch-manipulation"
+                    aria-label="Zoom out"
+                >
+                    <span className="text-xl font-bold leading-none">−</span>
+                </button>
+            </div>
+
+            {/* Return to Current Location Button - Bottom right, above zoom controls */}
+            <button
+                onClick={handleUseCurrentLocation}
+                className="absolute bottom-[7.5rem] right-4 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-700 shadow-lg ring-1 ring-black/5 hover:bg-gray-50 active:scale-95 transition-transform touch-manipulation"
+                aria-label="Return to my location"
+                title={userLocation ? "Return to my location" : "Get my location"}
+            >
+                <Crosshair className="h-5 w-5" />
+            </button>
+        </>
+    );
 }
 
 export default function ToiletMap() {
@@ -964,8 +1094,8 @@ export default function ToiletMap() {
            {currentTab === "add" && (
              <div className="flex h-full flex-col items-center bg-gray-50 pt-safe overflow-hidden">
                 
-                {/* Map Preview for Manual Location Picking */}
-                <div className="relative h-[35%] w-full bg-gray-200 shrink-0">
+                {/* Map Preview for Manual Location Picking - Increased height for better mobile UX */}
+                <div className="relative h-[50%] w-full bg-gray-200 shrink-0">
                     <Map
                         defaultCenter={addToiletLocation || userLocation || MALAYSIA_CENTER}
                         defaultZoom={15}
@@ -978,8 +1108,10 @@ export default function ToiletMap() {
                         streetViewControl={false}
                         rotateControl={false}
                         scaleControl={false}
+                        gestureHandling="greedy"
+                        clickableIcons={false}
                         onCameraChanged={(ev) => {
-                            // Update location when map is dragged
+                            // Update location when map is dragged or zoomed
                             setAddToiletLocation({
                                 lat: ev.detail.center.lat,
                                 lng: ev.detail.center.lng
@@ -991,29 +1123,46 @@ export default function ToiletMap() {
                             <PanToLocation location={userLocation} />
                         )}
                         
-                        {/* Center Pin */}
+                        {/* Map Controls (Zoom and Location) */}
+                        <AddMapControls 
+                            userLocation={userLocation}
+                            onUseCurrentLocation={() => {
+                                if (userLocation) {
+                                    setAddToiletLocation(userLocation);
+                                } else if (navigator.geolocation) {
+                                    navigator.geolocation.getCurrentPosition((pos) => {
+                                        setAddToiletLocation({
+                                            lat: pos.coords.latitude,
+                                            lng: pos.coords.longitude
+                                        });
+                                    });
+                                }
+                            }}
+                        />
+                        
+                        {/* Center Pin - Larger and more visible */}
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                            <div className="relative -mt-8">
-                                <div className="h-8 w-8 rounded-full bg-red-500 border-4 border-white shadow-lg flex items-center justify-center">
-                                    <div className="h-2 w-2 bg-white rounded-full" />
+                            <div className="relative -mt-10">
+                                <div className="h-10 w-10 rounded-full bg-red-500 border-4 border-white shadow-xl flex items-center justify-center">
+                                    <div className="h-2.5 w-2.5 bg-white rounded-full" />
                                 </div>
-                                <div className="absolute left-1/2 top-full h-4 w-0.5 -translate-x-1/2 bg-red-500" />
+                                <div className="absolute left-1/2 top-full h-5 w-0.5 -translate-x-1/2 bg-red-500 shadow-lg" />
                             </div>
                         </div>
                     </Map>
                     
-                    {/* Overlay Text */}
-                    <div className="absolute top-4 left-0 right-0 text-center pointer-events-none z-20">
-                        <span className="bg-black/60 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm font-medium">
-                            {addToiletLocation || userLocation ? "Drag map to adjust location" : "Drag map to pin location"}
+                    {/* Overlay Text - Less intrusive */}
+                    <div className="absolute top-3 left-3 right-3 pointer-events-none z-20">
+                        <span className="bg-black/70 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm font-medium block text-center">
+                            {addToiletLocation || userLocation ? "Drag to adjust • Pin shows location" : "Drag map to pin location"}
                         </span>
                     </div>
                     
-                    {/* GPS Status Indicator */}
+                    {/* GPS Status Indicator - Smaller and less intrusive */}
                     {userLocation && (
-                        <div className="absolute bottom-4 left-4 right-4 pointer-events-none z-20">
-                            <div className="bg-green-500/90 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm font-medium text-center">
-                                ✓ GPS Location Detected
+                        <div className="absolute bottom-3 left-3 pointer-events-none z-20">
+                            <div className="bg-green-500/90 text-white text-xs px-2.5 py-1 rounded-full backdrop-blur-sm font-medium">
+                                ✓ GPS
                             </div>
                         </div>
                     )}
