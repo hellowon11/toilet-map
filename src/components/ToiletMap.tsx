@@ -1046,7 +1046,7 @@ export default function ToiletMap() {
                                     value={newToiletName}
                                     onChange={(e) => setNewToiletName(e.target.value)}
                                     placeholder="e.g. KLCC Level 2" 
-                                    className="w-full rounded-xl border-gray-200 bg-gray-50 p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                                    className="w-full rounded-xl border-gray-200 bg-gray-50 p-3 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-colors" 
                                     required 
                                 />
                             </div>
@@ -1060,7 +1060,7 @@ export default function ToiletMap() {
                                     value={newToiletPrice}
                                     onChange={(e) => setNewToiletPrice(e.target.value)}
                                     placeholder="0.00" 
-                                    className="w-full rounded-xl border-gray-200 bg-gray-50 p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                                    className="w-full rounded-xl border-gray-200 bg-gray-50 p-3 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-colors" 
                                     required 
                                 />
                             </div>
