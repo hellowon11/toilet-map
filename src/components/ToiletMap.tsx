@@ -368,6 +368,7 @@ export default function ToiletMap() {
           setReviews([]); // Clear previous reviews
           setCurrentImageIndex(0); // Reset image index
           setImageLoading(true); // Reset loading state
+          setAiSummary(null); // Clear AI summary when switching toilets
           fetchReviews(selectedToilet.id).then(data => setReviews(data));
           
           // Add to history
@@ -481,17 +482,214 @@ export default function ToiletMap() {
 
   const handleSummarize = () => {
     setIsSummarizing(true);
-    // Simulate AI request
+    // Simulate AI analysis
     setTimeout(() => {
-      if (selectedToilet) {
-          const keywords = selectedToilet.tags.join(", ");
-          const rating = selectedToilet.cleanlinessRating;
-          let text = "";
-          if (rating >= 4.5) text = `Highly recommended! Users love the <b>${keywords}</b>. Spotless and well-maintained.`;
-          else if (rating >= 3.5) text = `Decent option. Good availability of <b>${keywords}</b>, but could be cleaner during peak hours.`;
-          else text = `Use only if necessary. Users report issues with cleanliness. <b>${keywords}</b> available but check condition first.`;
+      if (selectedToilet && reviews.length > 0) {
+          // Analyze reviews
+          const avgRating = selectedToilet.cleanlinessRating;
+          const reviewCount = reviews.length;
+          const tags = selectedToilet.tags;
+          const price = selectedToilet.price;
           
-          setAiSummary(text);
+          // Extract keywords from comments
+          const allComments = reviews
+              .filter(r => r.comment)
+              .map(r => r.comment!.toLowerCase());
+          
+          // Enhanced keyword categories with frequency tracking
+          const positiveKeywords = {
+              'clean': ['clean', 'spotless', 'hygienic', 'sanitary', 'fresh'],
+              'good': ['good', 'nice', 'great', 'excellent', 'amazing', 'wonderful', 'fantastic'],
+              'maintained': ['well maintained', 'well-kept', 'maintained', 'tidy', 'organized'],
+              'spacious': ['spacious', 'roomy', 'large', 'big', 'wide'],
+              'modern': ['modern', 'new', 'updated', 'renovated', 'contemporary'],
+              'convenient': ['convenient', 'accessible', 'easy', 'nearby', 'close'],
+              'facilities': ['bidet', 'soap', 'paper', 'tissue', 'hand dryer', 'baby changing']
+          };
+          
+          const negativeKeywords = {
+              'dirty': ['dirty', 'filthy', 'unclean', 'messy', 'stained'],
+              'broken': ['broken', 'damaged', 'out of order', 'not working', 'faulty'],
+              'smell': ['smell', 'smelly', 'odor', 'stinky', 'foul'],
+              'old': ['old', 'outdated', 'worn', 'aged', 'dilapidated'],
+              'small': ['small', 'cramped', 'tight', 'narrow', 'tiny'],
+              'crowded': ['crowded', 'busy', 'packed', 'full'],
+              'missing': ['no soap', 'no paper', 'no tissue', 'no hand dryer', 'no water']
+          };
+          
+          // Count keyword mentions with frequency
+          const keywordFrequency: { [key: string]: number } = {};
+          const mentionedPros: string[] = [];
+          const mentionedIssues: string[] = [];
+          
+          allComments.forEach(comment => {
+              // Positive keywords
+              Object.entries(positiveKeywords).forEach(([category, keywords]) => {
+                  keywords.forEach(keyword => {
+                      if (comment.includes(keyword)) {
+                          keywordFrequency[category] = (keywordFrequency[category] || 0) + 1;
+                          if (!mentionedPros.includes(category)) {
+                              mentionedPros.push(category);
+                          }
+                      }
+                  });
+              });
+              
+              // Negative keywords
+              Object.entries(negativeKeywords).forEach(([category, keywords]) => {
+                  keywords.forEach(keyword => {
+                      if (comment.includes(keyword)) {
+                          keywordFrequency[category] = (keywordFrequency[category] || 0) + 1;
+                          if (!mentionedIssues.includes(category)) {
+                              mentionedIssues.push(category);
+                          }
+                      }
+                  });
+              });
+          });
+          
+          // Sort by frequency
+          const topPros = mentionedPros.sort((a, b) => (keywordFrequency[b] || 0) - (keywordFrequency[a] || 0)).slice(0, 3);
+          const topIssues = mentionedIssues.sort((a, b) => (keywordFrequency[b] || 0) - (keywordFrequency[a] || 0)).slice(0, 3);
+          
+          // Sentiment analysis
+          const positiveCount = Object.values(positiveKeywords).flat().reduce((sum, keyword) => {
+              return sum + allComments.filter(c => c.includes(keyword)).length;
+          }, 0);
+          
+          const negativeCount = Object.values(negativeKeywords).flat().reduce((sum, keyword) => {
+              return sum + allComments.filter(c => c.includes(keyword)).length;
+          }, 0);
+          
+          const sentiment = (positiveCount + negativeCount) > 0 
+              ? positiveCount / (positiveCount + negativeCount) 
+              : 0.5;
+          
+          // Rating distribution
+          const ratingCounts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+          reviews.forEach(r => {
+              ratingCounts[r.rating as keyof typeof ratingCounts]++;
+          });
+          
+          const highRatings = ratingCounts[5] + ratingCounts[4];
+          const lowRatings = ratingCounts[1] + ratingCounts[2];
+          const highRatingPercent = (highRatings / reviewCount) * 100;
+          const lowRatingPercent = (lowRatings / reviewCount) * 100;
+          
+          // Generate intelligent summary
+          let summary = "";
+          
+          // Overall assessment with confidence
+          const confidence = reviewCount >= 10 ? "high" : reviewCount >= 5 ? "moderate" : "low";
+          const confidenceEmoji = confidence === "high" ? "🎯" : confidence === "moderate" ? "📊" : "💡";
+          
+          // More human-like opening phrases
+          if (avgRating >= 4.5 && highRatingPercent >= 80) {
+              summary += `<b>This place is really good!</b> ${confidenceEmoji} I looked through ${reviewCount} review${reviewCount > 1 ? 's' : ''}, and people absolutely love it here. The ratings are consistently excellent, so you're in for a treat! `;
+          } else if (avgRating >= 4.0) {
+              summary += `<b>Solid choice!</b> 👍 Based on ${reviewCount} review${reviewCount > 1 ? 's' : ''}, this place has an average rating of ${avgRating.toFixed(1)}/5. People generally have good experiences here, so you should be fine. `;
+          } else if (avgRating >= 3.0) {
+              summary += `<b>It's okay, but not amazing</b> ⚠️ The average rating is ${avgRating.toFixed(1)}/5 from ${reviewCount} user${reviewCount > 1 ? 's' : ''}. It'll do the job, but don't expect anything fancy. `;
+          } else {
+              summary += `<b>Hmm, might want to think twice</b> ⚠️ The average rating is only ${avgRating.toFixed(1)}/5 from ${reviewCount} review${reviewCount > 1 ? 's' : ''}. People seem to have mixed experiences here, so maybe check other options first. `;
+          }
+          
+          // Sentiment analysis - more conversational
+          if (sentiment > 0.7) {
+              summary += `When I read through the comments, people are <b>really happy</b> with this place (${Math.round(sentiment * 100)}% positive vibes). That's a good sign! `;
+          } else if (sentiment > 0.5) {
+              summary += `Overall, the comments are <b>pretty positive</b> (${Math.round(sentiment * 100)}% positive). People seem satisfied. `;
+          } else if (sentiment < 0.3) {
+              summary += `Honestly, the comments are <b>mostly negative</b> (${Math.round((1 - sentiment) * 100)}% negative). That's something to keep in mind. `;
+          }
+          
+          // Price mention with value assessment - more natural
+          if (price === 0) {
+              summary += `Best part? <b>It's completely free!</b> No need to worry about having change or anything. `;
+          } else {
+              const valueRating = avgRating / (price + 0.1); // Value score
+              if (valueRating > 2) {
+                  summary += `Costs RM${price} - honestly, that's <b>pretty reasonable</b> for what you get. Good bang for your buck! `;
+              } else if (valueRating > 1) {
+                  summary += `It's RM${price} to use - <b>fair enough</b>, I'd say. `;
+              } else {
+                  summary += `RM${price} per use - might be a bit pricey for what it is, but up to you! `;
+              }
+          }
+          
+          // Facilities with smart description - more engaging
+          if (tags.length > 0) {
+              const facilityCount = tags.length;
+              if (facilityCount === 1) {
+                  summary += `They have <b>${tags[0]}</b>, which is nice. `;
+              } else {
+                  summary += `They've got <b>${tags.slice(0, 3).join(', ')}</b>${tags.length > 3 ? ` and more` : ''} - pretty well-equipped! `;
+              }
+          }
+          
+          // Top positive aspects with frequency - more relatable
+          if (topPros.length > 0) {
+              const prosText = topPros.map(pro => {
+                  const freq = keywordFrequency[pro] || 0;
+                  if (freq > 2) {
+                      return `${pro} (mentioned ${freq} times!)`;
+                  }
+                  return pro;
+              }).join(', ');
+              summary += `People keep mentioning: <b>${prosText}</b>. That's what stands out! `;
+          }
+          
+          // Top issues with frequency - more honest
+          if (topIssues.length > 0) {
+              const issuesText = topIssues.map(issue => {
+                  const freq = keywordFrequency[issue] || 0;
+                  if (freq > 2) {
+                      return `${issue} (${freq} complaints)`;
+                  }
+                  return issue;
+              }).join(', ');
+              summary += `On the downside, some people mentioned: <b>${issuesText}</b>. Just so you know. `;
+          }
+          
+          // Rating distribution insight with detailed breakdown - more conversational
+          if (highRatingPercent >= 90) {
+              summary += `Get this: ${Math.round(highRatingPercent)}% of people gave it 4 or 5 stars, and ${ratingCounts[5]} people gave it a perfect 5! That's pretty impressive. `;
+          } else if (highRatingPercent >= 70) {
+              summary += `Most people (${Math.round(highRatingPercent)}%) seem happy with it, giving 4+ stars. `;
+          } else if (lowRatingPercent > 0.3) {
+              summary += `Just a heads up: ${Math.round(lowRatingPercent)}% of people weren't too happy (gave 1-2 stars). So experiences do vary. `;
+          }
+          
+          // Rating consistency - more natural
+          const ratingVariance = Object.values(ratingCounts).reduce((sum, count) => {
+              const diff = count - (reviewCount / 5);
+              return sum + (diff * diff);
+          }, 0) / reviewCount;
+          
+          if (ratingVariance < 0.5) {
+              summary += `Everyone seems to agree on the quality - <b>consistent experiences</b> across the board. `;
+          } else if (ratingVariance > 2) {
+              summary += `Fair warning: opinions are <b>pretty mixed</b> - some love it, some don't. Your experience might vary. `;
+          }
+          
+          // Final recommendation with actionable advice - more friendly
+          if (avgRating >= 4.5 && sentiment > 0.7) {
+              summary += `Bottom line: This is a <b>really solid choice</b>! People consistently have great experiences here, so I'd say go for it! 😊`;
+          } else if (avgRating >= 4.0) {
+              summary += `My take? It's a <b>good option</b> that should work well for you. Worth checking out!`;
+          } else if (avgRating >= 3.0) {
+              summary += `It's okay, but maybe <b>check the recent reviews and photos</b> first to see if it matches what you're looking for.`;
+          } else {
+              summary += `Honestly? You might want to <b>look at other options nearby</b> first. Or if you really need to go, maybe try during off-peak hours when it's less busy.`;
+          }
+          
+          setAiSummary(summary);
+      } else if (selectedToilet && reviews.length === 0) {
+          // No reviews yet - enhanced message, more friendly
+          const tags = selectedToilet.tags.join(", ");
+          const price = selectedToilet.price === 0 ? "free" : `RM${selectedToilet.price}`;
+          const facilitiesText = tags || "basic facilities";
+          setAiSummary(`<b>Hey, this is a new spot!</b> 📍 Nobody's reviewed it yet, so I can't tell you much about it. But here's what I know: it has <b>${facilitiesText}</b> and it's ${price} to use. <b>Want to be the first to check it out and share your experience?</b> You'd be helping others out! 😊`);
       }
       setIsSummarizing(false);
     }, 1500);
@@ -792,7 +990,7 @@ export default function ToiletMap() {
               if (filters.rating) setFilterRating(filters.rating);
               if (filters.price) setFilterPrice(filters.price);
               if (filters.tags) setFilterTags(filters.tags);
-              setCurrentTab("list");
+              // Don't auto-switch to list tab, stay on map
             }}
             onSelectToilet={(toilet) => {
               setSelectedToilet(toilet);
@@ -953,7 +1151,7 @@ export default function ToiletMap() {
                     <div>
                       <label className="text-xs font-bold text-gray-500 mb-1.5 block">Facilities</label>
                       <div className="flex flex-wrap gap-2">
-                        {["Bidet", "Accessible", "Baby Changing", "Prayer Room", "Premium"].map(tag => (
+                        {["Basic", "Clean", "Dirty", "Premium", "Bidet", "Toilet Paper Provided", "Accessible", "Baby Changing", "Prayer Room"].map(tag => (
                           <button
                             key={tag}
                             onClick={() => {
@@ -1184,7 +1382,7 @@ export default function ToiletMap() {
                             <div>
                                 <label className="mb-2 block text-sm font-bold text-gray-700">Facilities</label>
                                 <div className="flex flex-wrap gap-2">
-                                    {["Bidet", "Tissue", "Accessible", "Baby Changing", "Prayer Room"].map(tag => (
+                                    {["Basic", "Clean", "Dirty", "Premium", "Bidet", "Toilet Paper Provided", "Accessible", "Baby Changing", "Prayer Room"].map(tag => (
                                         <button 
                                             key={tag} 
                                             type="button" 
@@ -1418,35 +1616,48 @@ export default function ToiletMap() {
 
                 {/* AI Verdict */}
                 <div className="mb-8">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                             <span className="text-[#5B5FEF]">✨</span>
                             <span className="font-bold text-gray-900">AI Verdict</span>
+                            {reviews.length > 0 && (
+                                <span className="text-xs text-gray-500 font-normal">
+                                    ({reviews.length} review{reviews.length > 1 ? 's' : ''} analyzed)
+                                </span>
+                            )}
                         </div>
                         <button 
                             onClick={handleSummarize}
-                            disabled={isSummarizing || !!aiSummary}
-                            className="flex items-center gap-1 rounded-full bg-[#5B5FEF]/10 px-3 py-1 text-xs font-bold text-[#5B5FEF] disabled:opacity-50"
+                            disabled={isSummarizing}
+                            className="flex items-center gap-1 rounded-full bg-[#5B5FEF]/10 px-3 py-1.5 text-xs font-semibold text-[#5B5FEF] hover:bg-[#5B5FEF]/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {isSummarizing ? (
                                 <>
                                     <Loader2 className="h-3 w-3 animate-spin" />
                                     Analyzing...
                                 </>
+                            ) : aiSummary ? (
+                                "Regenerate"
                             ) : (
                                 "Summarize"
                             )}
                         </button>
                     </div>
                     
-                    {/* Default State: Hidden until summarized */}
+                    {/* AI Summary Display */}
                     {aiSummary ? (
-                         <div className="text-sm text-gray-500 leading-relaxed animate-in fade-in slide-in-from-top-2 duration-300">
-                            <span dangerouslySetInnerHTML={{ __html: aiSummary }} />
+                         <div className="rounded-xl bg-gradient-to-br from-[#5B5FEF]/5 to-purple-50/50 p-4 border border-[#5B5FEF]/10">
+                            <div className="text-sm text-gray-700 leading-relaxed animate-in fade-in slide-in-from-top-2 duration-300">
+                                <span dangerouslySetInnerHTML={{ __html: aiSummary }} />
+                            </div>
                          </div>
                     ) : (
-                         <div className="text-xs italic text-gray-400">
-                            Tap Summarize to get an AI analysis of all user reviews.
+                         <div className="rounded-xl bg-gray-50 p-4 border border-gray-200">
+                            <div className="text-xs text-gray-500 leading-relaxed">
+                                {reviews.length > 0 
+                                    ? "Tap Summarize to get an intelligent AI analysis of all user reviews, including key insights, common feedback, and recommendations."
+                                    : "No reviews yet. Reviews will be analyzed here once users start sharing their experiences."}
+                            </div>
                          </div>
                     )}
                 </div>
@@ -1542,20 +1753,20 @@ export default function ToiletMap() {
             </div>
 
             {/* Footer Action */}
-            <div className="border-t border-gray-100 bg-white p-4 pb-8 space-y-3">
-                <div className="flex gap-3">
+            <div className="border-t border-gray-200 bg-white px-4 pt-5 pb-5 md:px-4 md:pt-4 md:pb-8">
+                <div className="flex gap-2.5 md:gap-3">
                     <button 
                         onClick={handleShare}
-                        className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gray-100 py-3 font-bold text-gray-700 hover:bg-gray-200 active:scale-95 transition-all"
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-gray-50 py-2.5 md:py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 active:scale-95 transition-all border border-gray-200/60"
                     >
-                        <Share2 className="h-5 w-5" />
+                        <Share2 className="h-4 w-4 md:h-5 md:w-5" />
                         Share
                     </button>
                     <button 
                         onClick={handleNavigate}
-                        className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#4F46E5] py-3 font-bold text-white shadow-lg hover:bg-[#4338ca] active:scale-95 transition-all"
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#4F46E5] py-2.5 md:py-3 text-sm font-medium text-white shadow-sm hover:bg-[#4338ca] active:scale-95 transition-all"
                     >
-                        <Navigation className="h-5 w-5" />
+                        <Navigation className="h-4 w-4 md:h-5 md:w-5" />
                         Navigate
                     </button>
                 </div>
