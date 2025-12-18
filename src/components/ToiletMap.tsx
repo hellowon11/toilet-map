@@ -215,7 +215,8 @@ export default function ToiletMap() {
   // Share Menu State
   const [showShareMenu, setShowShareMenu] = useState(false);
 
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyC_kK6pS-MqXfntWGXW-DBpT43THUDiLEc";
+  // Google Maps API key – must be provided via environment variable
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   // Fetch toilets on mount
   const loadToilets = async () => {
